@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Force mobile scaling to be locked -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+    <title>looking for me? ^_^</title>
+    <meta name="description" content="couldnt avoyide the urge to search huh?">
+    
+    <!-- SEO Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebPage",
+      "name": "looking for me in the voyide",
+      "description": "well ? fuck off now -_- ",
+      "mainEntity": {
+        "@type": "ImageObject",
+        "contentUrl": "void.jpg",
+        "author": "Voyide Explorer"
+      }
+    }
+    </script>
+
+    <style>
+        :root {
+            --glow-color: 132, 0, 255; /* RGB Format for JS usage */
+            --bg-color: #050505;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            /* Disable selection */
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: #fff;
+            overflow: hidden; /* No scroll */
+            height: 100vh;
+            width: 100vw;
+            font-family: 'Courier New', Courier, monospace;
+            /* Crucial for locking mobile gestures */
+            touch-action: none; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* The stage for our 3D Canvas */
+        #void-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            cursor: crosshair;
+        }
+
+        /* Text Overlay */
+        .overlay-ui {
+            position: relative;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to canvas */
+            text-align: center;
+            mix-blend-mode: exclusion; /* Cool blending effect with the particles */
+            opacity: 0;
+            animation: fadeIn 3s ease 2s forwards;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            letter-spacing: 5px;
+            text-transform: lowercase;
+            text-shadow: 0 0 15px rgba(var(--glow-color), 1);
+        }
+
+        p {
+            font-size: 0.8rem;
+            color: rgba(255,255,255,0.7);
+            margin-top: 10px;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        /* Hiding the source image */
+        #source-img { display: none; }
+
+        .loading-text {
+            position: absolute;
+            z-index: 20;
+            color: rgba(var(--glow-color), 1);
+            font-size: 12px;
+            animation: blink 0.5s infinite;
+        }
+        
+        @keyframes blink { 50% { opacity: 0.2; } }
+    </style>
+</head>
+<body>
+
+    <!-- The Canvas where the magic happens -->
+    <canvas id="void-canvas"></canvas>
+    
+    <!-- Loading Indicator -->
+    <div id="loader" class="loading-text">INITIALIZING VOID...</div>
+
+    <!-- UI Overlay -->
+    <div class="overlay-ui">
+        <h1>looking for me?</h1>
+        <p>touch the void</p>
+    </div>
+
+    <!-- Source Image (Hidden) -->
+    <!-- Ensure 'void.jpg' exists in the same folder -->
+    <img id="source-img" src="void.jpg" alt="source" crossorigin="anonymous">
+
+    <script>
+        /**
+         * THE VOID ENGINE
+         * Uses Canvas API to read pixel data and convert it into 
+         * a 3D particle system that reacts to touch physics.
+         */
+
+        const canvas = document.getElementById('void-canvas');
+        const ctx = canvas.getContext('2d');
+        const img = document.getElementById('source-img');
+        const loader = document.getElementById('loader');
+
+        let particles = [];
+        let mouse = { x: -1000, y: -1000, active: false };
+        
+        // Configuration
+        const PARTICLE_DENSITY = 6; // Higher number = fewer particles (faster performance)
+        const PERSPECTIVE = 1000;
+        const RADIUS_INTERACTION = 120; // Size of your "finger magnet"
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Handle Inputs (Mouse & Touch)
+        function updateInput(x, y) {
+            mouse.x = x;
+            mouse.y = y;
+            mouse.active = true;
+        }
+
+        window.addEventListener('mousemove', e => updateInput(e.clientX, e.clientY));
+        window.addEventListener('touchmove', e => {
+            e.preventDefault(); // Prevent scrolling
+            updateInput(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        window.addEventListener('touchstart', e => {
+            e.preventDefault();
+            updateInput(e.touches[0].clientX, e.touches[0].clientY);
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => mouse.active = false);
+        window.addEventListener('mouseleave', () => mouse.active = false);
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            // On resize we might need to recenter, but for now we just let it be
+        });
+
+        // The Particle Class
+        class Particle {
+            constructor(x, y, color, brightness) {
+                // Target Position (Where it belongs in the image)
+                this.originX = x;
+                this.originY = y;
+                this.originZ = 0;
+
+                // Current Position (Starts randomly in deep 3D space)
+                this.x = (Math.random() * canvas.width * 3) - canvas.width;
+                this.y = (Math.random() * canvas.height * 3) - canvas.height;
+                this.z = (Math.random() * 2000) + 1000; // Start far away
+
+                // Physics
+                this.vx = 0;
+                this.vy = 0;
+                this.vz = 0;
+                this.friction = 0.92;
+                this.ease = 0.08;
+
+                // Appearance
+                this.color = color; // rgb string
+                this.brightness = brightness; // 0 to 255
+                this.size = (Math.random() * 1.5) + 1;
+            }
+
+            update() {
+                // 1. Interaction Physics (The Magnet Effect)
+                let dx = mouse.x - (this.x + (canvas.width/2 - img.width/2)); // Offset for centering
+                // Correction: Our coords are global, mouse is global.
+                // But particles are drawn relative to canvas center logic.
+                // Let's simplify: The particle's .x is relative to the image top-left.
+                // We need to calculate its screen position to compare with mouse.
+                
+                // Calculate current screen position
+                let screenX = this.x + (canvas.width - imgWidth) / 2;
+                let screenY = this.y + (canvas.height - imgHeight) / 2;
+
+                let dx_mouse = mouse.x - screenX;
+                let dy_mouse = mouse.y - screenY;
+                let distance = Math.sqrt(dx_mouse * dx_mouse + dy_mouse * dy_mouse);
+                
+                // The Force
+                let force = 0;
+                let angle = Math.atan2(dy_mouse, dx_mouse);
+
+                if (distance < RADIUS_INTERACTION && mouse.active) {
+                    force = (RADIUS_INTERACTION - distance) / RADIUS_INTERACTION;
+                    
+                    // "Break" effect: Push pixels based on their brightness
+                    // Bright pixels float up (Z), dark pixels push down
+                    let pushZ = -force * 800 * (this.brightness / 255); 
+                    
+                    // Repel X/Y
+                    let repelForce = force * 60;
+                    
+                    this.vx -= Math.cos(angle) * repelForce * 0.1;
+                    this.vy -= Math.sin(angle) * repelForce * 0.1;
+                    this.vz += (pushZ - this.z) * 0.1; // Smoothly move Z
+                } else {
+                    // Return to Z = 0
+                    this.vz += (0 - this.z) * 0.05;
+                }
+
+                // 2. Return to Origin Physics (Spring mechanism)
+                let dx_origin = this.originX - this.x;
+                let dy_origin = this.originY - this.y;
+
+                this.vx += dx_origin * this.ease;
+                this.vy += dy_origin * this.ease;
+
+                // Apply Velocity & Friction
+                this.x += this.vx;
+                this.y += this.vy;
+                this.z += this.vz;
+                
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                this.vz *= 0.9; // Heavy Z friction
+            }
+
+            draw() {
+                // 3D Projection Formula
+                // scale = f / (f + z)
+                let scale = PERSPECTIVE / (PERSPECTIVE + this.z);
+                
+                // Center the drawing on the canvas
+                let offsetX = (canvas.width - imgWidth) / 2;
+                let offsetY = (canvas.height - imgHeight) / 2;
+
+                // Apply projection
+                // We adjust position relative to center of screen based on Z depth
+                // This creates the parallax effect
+                let renderX = (this.x + offsetX - canvas.width/2) * scale + canvas.width/2;
+                let renderY = (this.y + offsetY - canvas.height/2) * scale + canvas.height/2;
+
+                ctx.fillStyle = this.color;
+                
+                // Dynamic Sizing based on Z-depth
+                let renderSize = this.size * scale;
+
+                if (mouse.active) {
+                     // Flash effect: If moving fast, or high Z, make it brighter/bigger
+                     if (this.z < -50) {
+                         ctx.shadowBlur = 10;
+                         ctx.shadowColor = this.color;
+                     } else {
+                         ctx.shadowBlur = 0;
+                     }
+                }
+
+                ctx.fillRect(renderX, renderY, renderSize, renderSize);
+            }
+        }
+
+        let imgWidth, imgHeight;
+
+        // INITIALIZATION
+        img.onload = function() {
+            loader.style.display = 'none';
+            
+            // Create an offline canvas to read pixel data
+            const tempCanvas = document.createElement('canvas');
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Scale down huge images for performance
+            let scaleFactor = 1;
+            if (img.width > 800) scaleFactor = 800 / img.width;
+            
+            imgWidth = img.width * scaleFactor;
+            imgHeight = img.height * scaleFactor;
+
+            tempCanvas.width = imgWidth;
+            tempCanvas.height = imgHeight;
+            tempCtx.drawImage(img, 0, 0, imgWidth, imgHeight);
+
+            const imageData = tempCtx.getImageData(0, 0, imgWidth, imgHeight).data;
+
+            // Loop through pixels
+            for (let y = 0; y < imgHeight; y += PARTICLE_DENSITY) {
+                for (let x = 0; x < imgWidth; x += PARTICLE_DENSITY) {
+                    const index = (y * imgWidth + x) * 4;
+                    const r = imageData[index];
+                    const g = imageData[index + 1];
+                    const b = imageData[index + 2];
+                    const alpha = imageData[index + 3];
+
+                    // Only create particles for visible pixels
+                    if (alpha > 128) {
+                        const brightness = (r + g + b) / 3;
+                        const color = `rgb(${r},${g},${b})`;
+                        particles.push(new Particle(x, y, color, brightness));
+                    }
+                }
+            }
+            
+            animate();
+        };
+        
+        // Trigger load manually if cached
+        if (img.complete) img.onload();
+
+        function animate() {
+            // Clear screen with a slight fade for "trails" effect (optional)
+            // To do trails: use fillStyle rgba(0,0,0,0.2) instead of clearRect
+            ctx.fillStyle = 'rgba(0, 0, 0, 1)'; 
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            particles.forEach(particle => {
+                particle.update();
+                particle.draw();
+            });
+
+            requestAnimationFrame(animate);
+        }
+
+    </script>
+</body>
+</html>
