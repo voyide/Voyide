@@ -1,0 +1,18 @@
+---
+layout: default
+---
+<h2>My Art Portfolio</h2>
+
+<div class="art-grid">
+  {% assign sorted_art = site.art | sort: 'date' | reverse %}
+  {% for piece in sorted_art %}
+    <figure class="art-card">
+        <img src="{{ piece.image | relative_url }}" alt="{{ piece.title }}">
+        <figcaption>
+            <h3>{{ piece.title }}</h3>
+            <div class="art-meta">{{ piece.medium }} &bull; {{ piece.date | date: "%Y" }}</div>
+            <p class="art-caption">{{ piece.content }}</p>
+        </figcaption>
+    </figure>
+  {% endfor %}
+</div>
