@@ -1,0 +1,15 @@
+---
+layout: default
+---
+<h2>Latest Mathematical Research</h2>
+
+{% for post in site.posts %}
+  <article class="blog-post">
+    <header>
+      <h3><a href="{{ post.url | relative_url }}" style="color: inherit; text-decoration: none;">{{ post.title }}</a></h3>
+      <div class="art-meta">{{ post.date | date: "%B %d, %Y" }}</div>
+    </header>
+    <p>{{ post.excerpt | strip_html | truncatewords: 30 }}</p>
+    <a href="{{ post.url | relative_url }}" style="color: var(--accent); font-weight: 500;">Read full paper →</a>
+  </article>
+{% endfor %}
