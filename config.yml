@@ -1,0 +1,11 @@
+title: My Creative Space
+description: A collection of math research and digital art.
+url: "" # Leave empty for now, GitHub will fill this in
+baseurl: ""
+
+# Enable the custom Art collection
+collections:
+  art:
+    output: false # Set to false because art is displayed on the grid, not individual pages
+
+markdown: kramdown
